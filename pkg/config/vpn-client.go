@@ -31,6 +31,13 @@ type VPNClient struct {
 	Namespace            string         `env:"NAMESPACE"`
 	VPNServerIndex       string         `env:"VPN_SERVER_INDEX"`
 	VPNClientIndex       int
+	// VPNClientIndexOffset shifts a shoot client's bonding (overlay) index to
+	// VPNClientIndex+offset while leaving its certificate identity (VPNClientIndex, derived
+	// from the pod ordinal) unchanged. Default 0 ⇒ identical to legacy behaviour. Used by
+	// GEP-39 live control-plane migration to run a second, temporary shoot-client StatefulSet
+	// on the upper half of the bonding-index range without colliding with the permanent
+	// clients. Only meaningful for IS_SHOOT_CLIENT=true.
+	VPNClientIndexOffset int           `env:"VPN_CLIENT_INDEX_OFFSET" envDefault:"0"`
 	IsHA                 bool          `env:"IS_HA"`
 	ReversedVPNHeader    string        `env:"REVERSED_VPN_HEADER" envDefault:"invalid-host"`
 	ReversedVPNHeaderKey string        `env:"REVERSED_VPN_HEADER_KEY" envDefault:"Reversed-VPN"`
@@ -104,6 +111,15 @@ func GetVPNClientConfig() (VPNClient, error) {
 		if err == nil {
 			cfg.VPNClientIndex = clientIndex
 		}
+	}
+
+	if cfg.VPNClientIndexOffset < 0 {
+		return VPNClient{}, fmt.Errorf("VPN_CLIENT_INDEX_OFFSET must not be negative")
+	}
+	// BondingShootClientIP encodes the slot in the last byte (ip[15] = index & 0xFF), so the
+	// offset bonding index must stay <= 255 to remain distinct.
+	if cfg.IsShootClient && cfg.VPNClientIndex >= 0 && cfg.VPNClientIndex+cfg.VPNClientIndexOffset > 255 {
+		return VPNClient{}, fmt.Errorf("VPNClientIndex+offset (%d) exceeds the bonding last-byte max of 255", cfg.VPNClientIndex+cfg.VPNClientIndexOffset)
 	}
 	return cfg, nil
 }
