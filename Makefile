@@ -20,7 +20,7 @@ LD_FLAGS                      := "-w $(shell bash $(GARDENER_HACK_DIR)/get-build
 
 IMAGE_TAG             := $(VERSION)
 EFFECTIVE_VERSION     := $(VERSION)-$(shell git rev-parse HEAD)
-ARCH                ?= amd64
+ARCH                ?= arm64
 
 PATH                          := $(GOBIN):$(PATH)
 
